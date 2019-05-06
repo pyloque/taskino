@@ -2,10 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/go-redis/redis"
-	"github.com/pyloque/taskino"
 	"log"
 	"os"
+
+	"github.com/go-redis/redis"
+	"github.com/pyloque/taskino"
 )
 
 type SampleListener struct {
@@ -38,7 +39,7 @@ func main() {
 		DB:   0,
 	})
 	store := taskino.NewRedisTaskStore(taskino.NewRedisStore(c), "sample", 5)
-	logger := log.New(os.Stdout, "taskino", 0)
+	logger := log.New(os.Stdout, "", 0)
 	scheduler := taskino.NewDistributedScheduler(store, logger)
 	once1 := taskino.TaskOf("once1", func() {
 		fmt.Println("once1")
@@ -60,7 +61,7 @@ func main() {
 		scheduler.Stop()
 	})
 	scheduler.Register(taskino.OnceOfDelay(70), stopper)
-	scheduler.SetVersion(2)
+	scheduler.SetVersion(3)
 	scheduler.AddListener(NewSampleListener(scheduler))
 	scheduler.Start()
 	scheduler.WaitForever()

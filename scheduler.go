@@ -120,6 +120,7 @@ func (s *DistributedScheduler) scheduleTasks() {
 		if task == nil {
 			continue
 		}
+		log.Printf("scheduling task %s\n", name)
 		trigger.schedule(s.executor, s.grabTaskSilently, task)
 	}
 }
@@ -191,14 +192,17 @@ func (s *DistributedScheduler) rescheduleTasks() {
 	for name, trigger := range s.reloadingTriggers {
 		var task = s.AllTasks[name]
 		if trigger == nil {
+			s.logger.Printf("cancelling task %s\n", name)
 			s.Triggers[name].cancel()
 			delete(s.Triggers, name)
 		} else {
 			var oldTrigger = s.Triggers[name]
 			if oldTrigger != nil {
+				s.logger.Printf("cancelling task %s\n", name)
 				oldTrigger.cancel()
 			}
 			s.Triggers[name] = trigger
+			s.logger.Printf("scheduling task %s\n", name)
 			trigger.schedule(s.executor, s.grabTaskSilently, task)
 		}
 	}
@@ -216,7 +220,8 @@ func (s *DistributedScheduler) rescheduleTasks() {
 }
 
 func (s *DistributedScheduler) cancelAllTasks() {
-	for _, trigger := range s.Triggers {
+	for name, trigger := range s.Triggers {
+		s.logger.Printf("cancelling task %s\n", name)
 		trigger.cancel()
 	}
 	s.Triggers = map[string]Trigger{}

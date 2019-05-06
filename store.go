@@ -116,6 +116,11 @@ func (s *RedisTaskStore) SaveAllTriggers(version int64, triggers map[string]stri
 		var triggersKey = s.keyFor("triggers")
 		var versionKey = s.keyFor("version")
 		redis.HMSet(triggersKey, triggersGeneric)
+		for _, name := range redis.HKeys(triggersKey).Val() {
+			if triggersGeneric[name] == nil {
+				redis.HDel(triggersKey, name)
+			}
+		}
 		redis.Set(versionKey, version, 0)
 	})
 }

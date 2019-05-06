@@ -109,10 +109,10 @@ scheduler.TriggerTask(name string)
 ### 注意点
 
 ```
-1. 如果在任务调度点发生网络抖动，Redis 读写出错，可能会引发任务的miss
-2. 多机器部署时无比保持时间同步，如果时间差异过大（5s），会导致任务重复执行
+1. 如果在任务调度点发生网络抖动，Redis 读写出错，可能会引发任务的miss，需要监控
+2. 多机器部署时务必保持时间同步，如果时间差异过大（5s），会导致任务重复执行
 ```
 
 ### Example
 
-[入门实例](github.com/pyloque/taskino/cmd/taskino/main.go)
+[入门实例](https://github.com/pyloque/taskino/blob/master/cmd/taskino/main.go)

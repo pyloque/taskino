@@ -39,7 +39,7 @@ func main() {
 		DB:   0,
 	})
 	store := taskino.NewRedisTaskStore(taskino.NewRedisStore(c), "sample", 5)
-	logger := log.New(os.Stdout, "", 0)
+	logger := log.New(os.Stdout, "", log.LstdFlags)
 	scheduler := taskino.NewDistributedScheduler(store, logger)
 	once1 := taskino.TaskOf("once1", func() {
 		fmt.Println("once1")

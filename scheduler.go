@@ -57,6 +57,15 @@ func (s *DistributedScheduler) Register(trigger Trigger, task *Task) *Distribute
 	s.Triggers[task.Name] = trigger
 	s.AllTasks[task.Name] = task
 	task.callback = func(ctx *TaskContext) {
+		func() {
+			defer func() {
+				if e := recover(); e != nil {
+					s.logger.Printf("save task %s lastrun time error %s\n", task.Name, e)
+				}
+			}()
+			var now = time.Now()
+			s.Store.SaveLastRunTime(task.Name, &now)
+		}()
 		for _, listener := range s.listeners {
 			func() {
 				defer func() {
@@ -76,6 +85,14 @@ func (s *DistributedScheduler) TriggerTask(name string) {
 	if task != nil {
 		task.run()
 	}
+}
+
+func (s *DistributedScheduler) GetLastRunTime(name string) *time.Time {
+	return s.Store.GetLastRunTime(name)
+}
+
+func (s *DistributedScheduler) GetAllLastRunTimes() map[string]*time.Time {
+	return s.Store.GetAllLastRunTimes()
 }
 
 func (s *DistributedScheduler) SetVersion(version int64) *DistributedScheduler {
@@ -120,7 +137,7 @@ func (s *DistributedScheduler) scheduleTasks() {
 		if task == nil {
 			continue
 		}
-		log.Printf("scheduling task %s\n", name)
+		s.logger.Printf("scheduling task %s\n", name)
 		trigger.schedule(s.executor, s.grabTaskSilently, task)
 	}
 }

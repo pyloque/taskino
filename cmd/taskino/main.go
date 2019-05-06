@@ -63,6 +63,9 @@ func main() {
 	scheduler.Register(taskino.OnceOfDelay(70), stopper)
 	scheduler.SetVersion(3)
 	scheduler.AddListener(NewSampleListener(scheduler))
-	scheduler.Start()
+	err := scheduler.Start()
+	if err != nil {
+		panic(err)
+	}
 	scheduler.WaitForever()
 }

@@ -17,7 +17,7 @@ c:= redis.NewClient(&redis.Options{
 })
 store := taskino.NewRedisTaskStore(taskino.NewRedisStore(c), "sample", 5)
 // 日志
-logger := log.New(os.Stdout, "taskino", 0)
+logger := log.New(os.Stdout, "taskino", log.LstdFlags)
 // 创建调度器
 scheduler := taskino.NewDistributedScheduler(store, logger)
 
@@ -36,7 +36,10 @@ scheduler.Register(taskino.OnceOfDelay(30), stopper)
 // 设置任务全局版本号
 scheduler.SetVersion(1)
 // 开启调度
-scheduler.Start()
+err := scheduler.Start()
+if err != nil {
+	panic(err)
+}
 // 等待退出
 scheduler.WaitForever()
 ```
@@ -109,8 +112,8 @@ scheduler.TriggerTask(name string)
 ### 获取任务上次运行时间
 
 ```go
-scheduler.GetLastRunTime(name string) *time.Time
-scheduler.GetAllLastRunTimes() map[string] *time.Time
+scheduler.GetLastRunTime(name string) (*time.Time, error)
+scheduler.GetAllLastRunTimes() map[string] (*time.Time, error)
 ```
 
 ### 注意点

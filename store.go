@@ -9,13 +9,13 @@ import (
 )
 
 type TaskStore interface {
-	GetRemoteVersion() int64
-	GetAllTriggers() map[string]string
-	SaveAllTriggers(version int64, triggers map[string]string)
-	GrabTask(name string) bool
-	SaveLastRunTime(name string, lastRun *time.Time)
-	GetLastRunTime(name string) *time.Time
-	GetAllLastRunTimes() map[string] *time.Time
+	GetRemoteVersion() (int64, error)
+	GetAllTriggers() (map[string]string, error)
+	SaveAllTriggers(version int64, triggers map[string]string) error
+	GrabTask(name string) (bool, error)
+	SaveLastRunTime(name string, lastRun *time.Time) error
+	GetLastRunTime(name string) (*time.Time, error)
+	GetAllLastRunTimes() (map[string] *time.Time, error)
 }
 
 type MemoryTaskStore struct {
@@ -32,33 +32,35 @@ func NewMemoryTaskStore() *MemoryTaskStore {
 	}
 }
 
-func (s *MemoryTaskStore) GetRemoteVersion() int64 {
-	return s.version
+func (s *MemoryTaskStore) GetRemoteVersion() (int64, error) {
+	return s.version, nil
 }
 
-func (s *MemoryTaskStore) GetAllTriggers() map[string]string {
-	return s.triggers
+func (s *MemoryTaskStore) GetAllTriggers() (map[string]string, error) {
+	return s.triggers, nil
 }
 
-func (s *MemoryTaskStore) SaveAllTriggers(version int64, triggers map[string]string) {
+func (s *MemoryTaskStore) SaveAllTriggers(version int64, triggers map[string]string) error {
 	s.triggers = triggers
 	s.version = version
+	return nil
 }
 
-func (s *MemoryTaskStore) GrabTask(name string) bool {
-	return true
+func (s *MemoryTaskStore) GrabTask(name string) (bool, error) {
+	return true, nil
 }
 
-func (s *MemoryTaskStore) SaveLastRunTime(name string, lastRun *time.Time) {
+func (s *MemoryTaskStore) SaveLastRunTime(name string, lastRun *time.Time) error {
 	s.lastRuns[name] = lastRun
+	return nil
 }
 
-func (s *MemoryTaskStore) GetLastRunTime(name string) *time.Time {
-	return s.lastRuns[name]
+func (s *MemoryTaskStore) GetLastRunTime(name string) (*time.Time, error) {
+	return s.lastRuns[name], nil
 }
 
-func (s *MemoryTaskStore) GetAllLastRunTimes() map[string]*time.Time {
-	return s.lastRuns
+func (s *MemoryTaskStore) GetAllLastRunTimes() (map[string]*time.Time, error) {
+	return s.lastRuns, nil
 }
 
 type RedisStore struct {
@@ -85,14 +87,17 @@ func NewRedisTaskStore(redis *RedisStore, group string, lockAge int) *RedisTaskS
 	return &RedisTaskStore{redis, group, lockAge}
 }
 
-func (s *RedisTaskStore) GrabTask(name string) bool {
-	r := false
+func (s *RedisTaskStore) GrabTask(name string) (r bool, e error) {
 	s.redis.execute(func(redis *redis.Client) {
 		var key = s.keyFor("task_lock", name)
 		var cmd = redis.SetNX(key, "true", time.Second*time.Duration(s.lockAge))
+		if cmd.Err() != nil {
+			e = cmd.Err()
+			return
+		}
 		r = cmd.Val()
 	})
-	return r
+	return
 }
 
 func (s *RedisTaskStore) keyFor(args ...interface{}) string {
@@ -104,27 +109,34 @@ func (s *RedisTaskStore) keyFor(args ...interface{}) string {
 	return strings.Join(params, "_")
 }
 
-func (s *RedisTaskStore) GetRemoteVersion() int64 {
-	var r int64 = 0
+func (s *RedisTaskStore) GetRemoteVersion() (r int64, e error) {
+	r = 0
 	s.redis.execute(func(redis *redis.Client) {
 		var key = s.keyFor("version")
 		var cmd = redis.IncrBy(key, 0)
+		if cmd.Err() != nil {
+			e = cmd.Err()
+			return
+		}
 		r = cmd.Val()
 	})
-	return r
+	return
 }
 
-func (s *RedisTaskStore) GetAllTriggers() map[string]string {
-	r := make(map[string]string)
+func (s *RedisTaskStore) GetAllTriggers() (r map[string]string, e error) {
 	s.redis.execute(func(redis *redis.Client) {
 		var key = s.keyFor("triggers")
 		var cmd = redis.HGetAll(key)
+		if cmd.Err() != nil {
+			e = cmd.Err()
+			return
+		}
 		r = cmd.Val()
 	})
-	return r
+	return
 }
 
-func (s *RedisTaskStore) SaveAllTriggers(version int64, triggers map[string]string) {
+func (s *RedisTaskStore) SaveAllTriggers(version int64, triggers map[string]string) (r error) {
 	var triggersGeneric = make(map[string]interface{})
 	for key, value := range triggers {
 		triggersGeneric[key] = value
@@ -133,45 +145,80 @@ func (s *RedisTaskStore) SaveAllTriggers(version int64, triggers map[string]stri
 		var triggersKey = s.keyFor("triggers")
 		var lastRunKey = s.keyFor("lastruns")
 		var versionKey = s.keyFor("version")
-		redis.HMSet(triggersKey, triggersGeneric)
+		cmd := redis.HMSet(triggersKey, triggersGeneric)
+		if cmd.Err() != nil {
+			r = cmd.Err()
+			return
+		}
 		for _, name := range redis.HKeys(triggersKey).Val() {
 			if triggersGeneric[name] == nil {
-				redis.HDel(triggersKey, name)
-				redis.HDel(lastRunKey, name)
+				cmd := redis.HDel(triggersKey, name)
+				if cmd.Err() != nil {
+					r = cmd.Err()
+					return
+				}
+				cmd = redis.HDel(lastRunKey, name)
+				if cmd.Err() != nil {
+					r = cmd.Err()
+					return
+				}
 			}
 		}
-		redis.Set(versionKey, version, 0)
+		cmd = redis.Set(versionKey, version, 0)
+		r = cmd.Err()
 	})
+	return
 }
 
-func (s *RedisTaskStore) SaveLastRunTime(name string, lastRun *time.Time) {
+func (s *RedisTaskStore) SaveLastRunTime(name string, lastRun *time.Time) (r error) {
 	s.redis.execute(func(redis *redis.Client) {
 		var key = s.keyFor("lastruns")
 		var raw = lastRun.Format(LayoutISO)
-		redis.HSet(key, name, raw)
+		cmd := redis.HSet(key, name, raw)
+		r = cmd.Err()
 	})
+	return
 }
 
-func (s *RedisTaskStore) GetLastRunTime(name string) (r *time.Time) {
+func (s *RedisTaskStore) GetLastRunTime(name string) (r *time.Time, e error) {
 	s.redis.execute(func(redis *redis.Client) {
 		var key = s.keyFor("lastruns")
-		var raw = redis.HGet(key, name).Val()
+		var cmd = redis.HGet(key, name)
+		if cmd.Err() != nil {
+			e = cmd.Err()
+			return
+		}
+		var raw = cmd.Val()
 		if raw != "" {
-			t, _ := time.Parse(LayoutISO, raw)
+			t, err := time.Parse(LayoutISO, raw)
+			if err != nil {
+				e = err
+				return
+			}
 			r = &t
 		}
 	})
-	return r
+	return
 }
 
-func (s *RedisTaskStore) GetAllLastRunTimes() map[string]*time.Time {
-	var r = map[string]*time.Time{}
+func (s *RedisTaskStore) GetAllLastRunTimes() (r map[string]*time.Time, e error) {
 	s.redis.execute(func(redis *redis.Client) {
 		var key = s.keyFor("lastruns")
-		for name, raw := range redis.HGetAll(key).Val() {
-			t, _ := time.Parse(LayoutISO, raw)
+		var cmd = redis.HGetAll(key)
+		if cmd.Err() != nil {
+			e = cmd.Err()
+			return
+		}
+		r = map[string]*time.Time{}
+		for name, raw := range cmd.Val() {
+			t, err := time.Parse(LayoutISO, raw)
+			if err != nil {
+				e = err
+				r = nil
+				return
+			}
 			r[name] = &t
 		}
 	})
-	return r
+	return
 }

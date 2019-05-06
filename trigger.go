@@ -58,7 +58,7 @@ func (t *OnceTrigger) equals(other Trigger) bool {
 	if !ok {
 		return false
 	}
-	return t.startTime.Equal(oo.startTime)
+	return t.startTime.Unix() == oo.startTime.Unix()
 }
 
 func (t *OnceTrigger) cancel() {
@@ -152,10 +152,10 @@ func (t *PeriodTrigger) equals(other Trigger) bool {
 	if !ok {
 		return false
 	}
-	if !t.startTime.Equal(oo.startTime) {
+	if t.startTime.Unix()  != oo.startTime.Unix() {
 		return false
 	}
-	if !t.endTime.Equal(oo.endTime) {
+	if t.endTime.Unix() != oo.endTime.Unix() {
 		return false
 	}
 	return t.period == oo.period

@@ -64,7 +64,9 @@ func (s *DistributedScheduler) Register(trigger Trigger, task *Task) *Distribute
 				}
 			}()
 			var now = time.Now()
-			s.Store.SaveLastRunTime(task.Name, &now)
+			if err := s.Store.SaveLastRunTime(task.Name, &now); err != nil {
+				s.logger.Printf("save task %s last run time error %s\n", task.Name, err)
+			}
 		}()
 		for _, listener := range s.listeners {
 			func() {
@@ -87,11 +89,11 @@ func (s *DistributedScheduler) TriggerTask(name string) {
 	}
 }
 
-func (s *DistributedScheduler) GetLastRunTime(name string) *time.Time {
+func (s *DistributedScheduler) GetLastRunTime(name string) (*time.Time, error) {
 	return s.Store.GetLastRunTime(name)
 }
 
-func (s *DistributedScheduler) GetAllLastRunTimes() map[string]*time.Time {
+func (s *DistributedScheduler) GetAllLastRunTimes() (map[string]*time.Time, error) {
 	return s.Store.GetAllLastRunTimes()
 }
 
@@ -103,8 +105,10 @@ func (s *DistributedScheduler) SetVersion(version int64) *DistributedScheduler {
 	return s
 }
 
-func (s *DistributedScheduler) Start() {
-	s.saveTriggers()
+func (s *DistributedScheduler) Start() error {
+	if err := s.saveTriggers(); err != nil {
+		return err
+	}
 	s.scheduleTasks()
 	go s.scheduleReload()
 	for _, listener := range s.listeners {
@@ -117,18 +121,23 @@ func (s *DistributedScheduler) Start() {
 			listener.OnStartup()
 		}()
 	}
+	return nil
 }
 
 func (s *DistributedScheduler) WaitForever() {
 	<-s.stop
 }
 
-func (s *DistributedScheduler) saveTriggers() {
+func (s *DistributedScheduler) saveTriggers() error {
 	var triggersRaw = map[string]string{}
 	for name, trigger := range s.Triggers {
 		triggersRaw[name] = SerializeTrigger(trigger)
 	}
-	s.Store.SaveAllTriggers(s.Version, triggersRaw)
+	err := s.Store.SaveAllTriggers(s.Version, triggersRaw)
+	if err != nil {
+		s.logger.Printf("save task triggers error %s", err)
+	}
+	return err
 }
 
 func (s *DistributedScheduler) scheduleTasks() {
@@ -138,20 +147,19 @@ func (s *DistributedScheduler) scheduleTasks() {
 			continue
 		}
 		s.logger.Printf("scheduling task %s\n", name)
-		trigger.schedule(s.executor, s.grabTaskSilently, task)
+		trigger.schedule(s.executor, s.grabTask, task)
 	}
 }
 
-func (s *DistributedScheduler) grabTaskSilently(task *Task) bool {
-	defer func() {
-		if e := recover(); e != nil {
-			s.logger.Printf("grab task %s error %s\n", task.Name, e)
-		}
-	}()
+func (s *DistributedScheduler) grabTask(task *Task) bool {
 	if task.Concurrent {
 		return true
 	}
-	return s.Store.GrabTask(task.Name)
+	r, e := s.Store.GrabTask(task.Name)
+	if e != nil {
+		s.logger.Printf("grab task %s error %s\n", task.Name, e)
+	}
+	return r
 }
 
 func (s *DistributedScheduler) scheduleReload() {
@@ -176,7 +184,11 @@ func (s *DistributedScheduler) reloadIfChanged() bool {
 			s.logger.Printf("reloading task error %s\n", e)
 		}
 	}()
-	var remoteVersion = s.Store.GetRemoteVersion()
+	remoteVersion, err := s.Store.GetRemoteVersion()
+	if err != nil {
+		s.logger.Printf("get remote version error %s\n", err)
+		return false
+	}
 	if remoteVersion > s.Version {
 		s.Version = remoteVersion
 		s.reload()
@@ -186,7 +198,11 @@ func (s *DistributedScheduler) reloadIfChanged() bool {
 }
 
 func (s *DistributedScheduler) reload() {
-	var raws = s.Store.GetAllTriggers()
+	raws, err := s.Store.GetAllTriggers()
+	if err != nil {
+		log.Printf("load triggers error %s\n", err)
+		return
+	}
 	var reloadings = map[string]Trigger{}
 	for name, raw := range raws {
 		if s.AllTasks[name] != nil {
@@ -220,7 +236,7 @@ func (s *DistributedScheduler) rescheduleTasks() {
 			}
 			s.Triggers[name] = trigger
 			s.logger.Printf("scheduling task %s\n", name)
-			trigger.schedule(s.executor, s.grabTaskSilently, task)
+			trigger.schedule(s.executor, s.grabTask, task)
 		}
 	}
 	s.reloadingTriggers = map[string]Trigger{}
@@ -252,7 +268,7 @@ func (s *DistributedScheduler) Stop() {
 		func() {
 			defer func() {
 				if e := recover(); e != nil {
-					s.logger.Printf("invoke listener stop error %s\n", e)
+					s.logger.Printf("invoke listener OnStop error %s\n", e)
 				}
 			}()
 			listener.OnStop()

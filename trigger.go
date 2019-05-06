@@ -152,7 +152,7 @@ func (t *PeriodTrigger) equals(other Trigger) bool {
 	if !ok {
 		return false
 	}
-	if t.startTime.Unix()  != oo.startTime.Unix() {
+	if t.startTime.Unix() != oo.startTime.Unix() {
 		return false
 	}
 	if t.endTime.Unix() != oo.endTime.Unix() {

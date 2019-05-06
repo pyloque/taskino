@@ -15,7 +15,7 @@ type TaskStore interface {
 	GrabTask(name string) (bool, error)
 	SaveLastRunTime(name string, lastRun *time.Time) error
 	GetLastRunTime(name string) (*time.Time, error)
-	GetAllLastRunTimes() (map[string] *time.Time, error)
+	GetAllLastRunTimes() (map[string]*time.Time, error)
 }
 
 type MemoryTaskStore struct {

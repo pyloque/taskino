@@ -50,6 +50,19 @@ func (s *DistributedScheduler) AddListener(listener SchedulerListener) *Distribu
 	return s
 }
 
+func (s *DistributedScheduler) callListener(method string, consumer func(listener SchedulerListener)) {
+	for _, listener := range s.listeners {
+		func() {
+			defer func() {
+				if e := recover(); e != nil {
+					s.logger.Printf("invoke task listener %s error %s\n", method, e)
+				}
+			}()
+			consumer(listener)
+		}()
+	}
+}
+
 func (s *DistributedScheduler) Register(trigger Trigger, task *Task) *DistributedScheduler {
 	if s.Triggers[task.Name] != nil {
 		panic("task name duplicated!")
@@ -68,16 +81,9 @@ func (s *DistributedScheduler) Register(trigger Trigger, task *Task) *Distribute
 				s.logger.Printf("save task %s last run time error %s\n", task.Name, err)
 			}
 		}()
-		for _, listener := range s.listeners {
-			func() {
-				defer func() {
-					if e := recover(); e != nil {
-						s.logger.Printf("invoke task %s listener OnComplete error %s\n", task.Name, e)
-					}
-				}()
-				listener.OnComplete(ctx)
-			}()
-		}
+		s.callListener("OnCompelete", func(listener SchedulerListener) {
+			listener.OnComplete(ctx)
+		})
 	}
 	return s
 }
@@ -111,16 +117,9 @@ func (s *DistributedScheduler) Start() error {
 	}
 	s.scheduleTasks()
 	go s.scheduleReload()
-	for _, listener := range s.listeners {
-		func() {
-			defer func() {
-				if e := recover(); e != nil {
-					s.logger.Printf("invoke listener startup error %s\n", e)
-				}
-			}()
-			listener.OnStartup()
-		}()
-	}
+	s.callListener("OnStartup", func(listener SchedulerListener) {
+		listener.OnStartup()
+	})
 	return nil
 }
 
@@ -240,16 +239,9 @@ func (s *DistributedScheduler) rescheduleTasks() {
 		}
 	}
 	s.reloadingTriggers = map[string]Trigger{}
-	for _, listener := range s.listeners {
-		func() {
-			defer func() {
-				if e := recover(); e != nil {
-					s.logger.Printf("invoke listener reload error %s\n", e)
-				}
-			}()
-			listener.OnReload()
-		}()
-	}
+	s.callListener("OnReload", func(listener SchedulerListener) {
+		listener.OnReload()
+	})
 }
 
 func (s *DistributedScheduler) cancelAllTasks() {
@@ -264,14 +256,7 @@ func (s *DistributedScheduler) Stop() {
 	close(s.stop)
 	s.cancelAllTasks()
 	s.executor.shutdown()
-	for _, listener := range s.listeners {
-		func() {
-			defer func() {
-				if e := recover(); e != nil {
-					s.logger.Printf("invoke listener OnStop error %s\n", e)
-				}
-			}()
-			listener.OnStop()
-		}()
-	}
+	s.callListener("OnStop", func(listener SchedulerListener) {
+		listener.OnStop()
+	})
 }

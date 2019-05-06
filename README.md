@@ -115,4 +115,4 @@ scheduler.TriggerTask(name string)
 
 ### Example
 
-[入门实例](github.com/pyloque/taskino/cmd/taskino/main.go)
+[入门实例](https://github.com/pyloque/taskino/cmd/taskino/main.go)

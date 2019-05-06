@@ -40,23 +40,23 @@ func main() {
 	store := taskino.NewRedisTaskStore(taskino.NewRedisStore(c), "sample", 5)
 	logger := log.New(os.Stdout, "taskino", 0)
 	scheduler := taskino.NewDistributedScheduler(store, logger)
-	once1 := taskino.NewTask("once1", false, func() {
+	once1 := taskino.TaskOf("once1", func() {
 		fmt.Println("once1")
 	})
 	scheduler.Register(taskino.OnceOfDelay(5), once1)
-	period2 := taskino.NewTask("period2", false, func() {
+	period2 := taskino.TaskOf("period2", func() {
 		fmt.Println("period2")
 	})
 	scheduler.Register(taskino.PeriodOfDelay(5, 5), period2)
-	cron3 := taskino.NewTask("cron3", false, func() {
+	cron3 := taskino.TaskOf("cron3", func() {
 		fmt.Println("cron3")
 	})
 	scheduler.Register(taskino.CronOfMinutes(1), cron3)
-	period4 := taskino.NewTask("period4", false, func() {
+	period4 := taskino.TaskOf("period4", func() {
 		fmt.Println("period4")
 	})
 	scheduler.Register(taskino.PeriodOfDelay(5, 5), period4)
-	stopper := taskino.NewTask("stopper", true, func() {
+	stopper := taskino.ConcurrentTask("stopper", func() {
 		scheduler.Stop()
 	})
 	scheduler.Register(taskino.OnceOfDelay(70), stopper)

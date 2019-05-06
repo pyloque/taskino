@@ -179,7 +179,7 @@ func (s *DistributedScheduler) reload() {
 			}
 		}
 	}
-	for name, _ := range s.Triggers {
+	for name := range s.Triggers {
 		if raws[name] == "" {
 			reloadings[name] = nil
 		}

@@ -116,3 +116,7 @@ scheduler.TriggerTask(name string)
 ### Example
 
 [入门实例](https://github.com/pyloque/taskino/blob/master/cmd/taskino/main.go)
+
+
+### Java 版
+[jtaskino](https://github.com/pyloque/jtaskino)

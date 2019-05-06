@@ -106,6 +106,13 @@ taskino.CronOf(expr string) *CronTrigger
 scheduler.TriggerTask(name string)
 ```
 
+### 获取任务上次运行时间
+
+```go
+scheduler.GetLastRunTime(name string) *time.Time
+scheduler.GetAllLastRunTimes() map[string] *time.Time
+```
+
 ### 注意点
 
 ```

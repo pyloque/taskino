@@ -5,6 +5,7 @@ import (
 	"github.com/go-redis/redis"
 	"math/rand"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -22,10 +23,12 @@ type MemoryTaskStore struct {
 	triggers map[string]string
 	lastRuns map[string]*time.Time
 	version  int64
+	*sync.Mutex  // protect lastRuns
 }
 
 func NewMemoryTaskStore() *MemoryTaskStore {
 	return &MemoryTaskStore{
+		Mutex: &sync.Mutex{},
 		triggers: make(map[string]string),
 		lastRuns: make(map[string]*time.Time),
 		version:  0,
@@ -51,16 +54,26 @@ func (s *MemoryTaskStore) GrabTask(name string) (bool, error) {
 }
 
 func (s *MemoryTaskStore) SaveLastRunTime(name string, lastRun *time.Time) error {
+	s.Lock()
+	defer s.Unlock()
 	s.lastRuns[name] = lastRun
 	return nil
 }
 
 func (s *MemoryTaskStore) GetLastRunTime(name string) (*time.Time, error) {
+	s.Lock()
+	defer s.Unlock()
 	return s.lastRuns[name], nil
 }
 
 func (s *MemoryTaskStore) GetAllLastRunTimes() (map[string]*time.Time, error) {
-	return s.lastRuns, nil
+	s.Lock()
+	defer s.Unlock()
+	r := map[string]*time.Time{}
+	for k, v := range s.lastRuns {
+		r[k] = v
+	}
+	return r, nil
 }
 
 type RedisStore struct {

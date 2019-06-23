@@ -188,7 +188,7 @@ func (s *DistributedScheduler) reloadIfChanged() bool {
 		s.logger.Printf("get remote version error %s\n", err)
 		return false
 	}
-	if remoteVersion > s.Version {
+	if remoteVersion != s.Version {
 		s.Version = remoteVersion
 		s.reload()
 		return true
